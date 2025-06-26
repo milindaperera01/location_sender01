@@ -4,6 +4,14 @@
   <title>Send & Receive Location on AWS IoT</title>
   <script src="https://sdk.amazonaws.com/js/aws-sdk-2.814.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/eclipse/paho.mqtt.javascript@v1.1.0/src/paho-mqtt.min.js"></script>
+    <script>
+    if (typeof Paho === 'undefined') {
+        document.getElementById("status").textContent = "❌ Paho not loaded.";
+    } else {
+        console.log("✅ Paho loaded.");
+    }
+    </script>
+
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; }
     #status { margin-top: 15px; font-size: 1.1em; }
