@@ -1,17 +1,22 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Send Location to AWS IoT</title>
+  <title>Send & Receive Location on AWS IoT</title>
   <script src="https://sdk.amazonaws.com/js/aws-sdk-2.814.0.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/mqttws31.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; }
     #status { margin-top: 15px; font-size: 1.1em; }
+    #messages { margin-top: 20px; border: 1px solid #ccc; padding: 10px; max-height: 200px; overflow-y: auto; }
+    .message { margin-bottom: 8px; padding: 6px; border-bottom: 1px solid #eee; }
   </style>
 </head>
 <body>
-  <h2>📍 Sending Your Location to AWS IoT</h2>
+  <h2>📍 Sending & Receiving Messages with AWS IoT</h2>
   <p id="status">Starting...</p>
+
+  <h3>Incoming Messages on <code>mobile/location</code>:</h3>
+  <div id="messages">(No messages yet)</div>
 
   <script>
     const REGION = "us-east-1";
@@ -21,6 +26,17 @@
     function updateStatus(msg) {
       document.getElementById("status").textContent = msg;
       console.log(msg);
+    }
+
+    function addMessage(msg) {
+      const container = document.getElementById("messages");
+      const div = document.createElement("div");
+      div.className = "message";
+      div.textContent = msg;
+      container.appendChild(div);
+
+      // Scroll to bottom so latest message is visible
+      container.scrollTop = container.scrollHeight;
     }
 
     AWS.config.region = REGION;
@@ -41,7 +57,6 @@
       const creds = AWS.config.credentials;
       const clientId = "client-" + Math.floor(Math.random() * 1000000);
 
-      // Paho MQTT client for WebSocket connection
       const mqttClient = new Paho.MQTT.Client(
         IOT_ENDPOINT,
         443,
@@ -49,12 +64,32 @@
         clientId
       );
 
+      mqttClient.onConnectionLost = function(responseObject) {
+        updateStatus("MQTT connection lost: " + (responseObject.errorMessage || "Unknown"));
+        console.error("Connection lost:", responseObject);
+      };
+
+      mqttClient.onMessageArrived = function(message) {
+        const topic = message.destinationName;
+        const payload = message.payloadString;
+        addMessage(`[${new Date().toLocaleTimeString()}] Topic: ${topic} — Message: ${payload}`);
+        console.log("Received message:", topic, payload);
+      };
+
       const connectOptions = {
         useSSL: true,
         timeout: 5,
         mqttVersion: 4,
         onSuccess: () => {
-          updateStatus("Connected to AWS IoT. Requesting location...");
+          updateStatus("Connected to AWS IoT. Subscribing to topic and sending location...");
+
+          // Subscribe to topic to receive messages
+          mqttClient.subscribe("mobile/location", {
+            qos: 0,
+            onSuccess: () => updateStatus("Subscribed to topic mobile/location"),
+            onFailure: (err) => updateStatus("Subscribe failed: " + JSON.stringify(err))
+          });
+
           if (!navigator.geolocation) {
             updateStatus("Geolocation is not supported by your browser.");
             return;
@@ -84,11 +119,7 @@
           updateStatus("❌ MQTT connection failed: " + JSON.stringify(err));
           console.error("MQTT connection failed:", err);
         },
-        useSSL: true,
 
-        // NOTE: The Paho MQTT JS client does NOT support AWS SigV4 auth out of the box.
-        // Using AWS temporary credentials directly here will likely fail.
-        // To fix this, you must generate a signed URL or use AWS IoT SDK v2/v3.
         userName: creds.accessKeyId,
         password: creds.sessionToken
       };
