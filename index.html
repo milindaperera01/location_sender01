@@ -4,31 +4,44 @@
   <title>Send Location to AWS IoT</title>
   <script src="https://sdk.amazonaws.com/js/aws-sdk-2.814.0.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/mqttws31.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    #status { margin-top: 15px; font-size: 1.1em; }
+  </style>
 </head>
 <body>
   <h2>📍 Sending Your Location to AWS IoT</h2>
-  <p id="status">Requesting AWS credentials...</p>
+  <p id="status">Starting...</p>
 
   <script>
     const REGION = "us-east-1";
     const IDENTITY_POOL_ID = "us-east-1:018326cf-26a9-4a3e-88e4-d64a4b61bdc2";
     const IOT_ENDPOINT = "a85vmpn2frq7e-ats.iot.us-east-1.amazonaws.com";
 
+    function updateStatus(msg) {
+      document.getElementById("status").textContent = msg;
+      console.log(msg);
+    }
+
     AWS.config.region = REGION;
     AWS.config.credentials = new AWS.CognitoIdentityCredentials({
       IdentityPoolId: IDENTITY_POOL_ID
     });
 
+    updateStatus("Requesting AWS credentials...");
     AWS.config.credentials.get(function(err) {
       if (err) {
-        document.getElementById("status").textContent = "Error getting credentials: " + err;
-        console.error(err);
+        updateStatus("Error getting AWS credentials: " + err.message || err);
+        console.error("Cognito error:", err);
         return;
       }
+
+      updateStatus("AWS credentials obtained.");
 
       const creds = AWS.config.credentials;
       const clientId = "client-" + Math.floor(Math.random() * 1000000);
 
+      // Paho MQTT client for WebSocket connection
       const mqttClient = new Paho.MQTT.Client(
         IOT_ENDPOINT,
         443,
@@ -38,29 +51,44 @@
 
       const connectOptions = {
         useSSL: true,
-        timeout: 3,
+        timeout: 5,
         mqttVersion: 4,
         onSuccess: () => {
-          document.getElementById("status").textContent = "Connected. Getting location...";
-          navigator.geolocation.getCurrentPosition((position) => {
-            const payload = {
-              lat: position.coords.latitude,
-              lon: position.coords.longitude,
-              time: new Date().toISOString()
-            };
+          updateStatus("Connected to AWS IoT. Requesting location...");
+          if (!navigator.geolocation) {
+            updateStatus("Geolocation is not supported by your browser.");
+            return;
+          }
 
-            const message = new Paho.MQTT.Message(JSON.stringify(payload));
-            message.destinationName = "mobile/location";
-            mqttClient.send(message);
-            document.getElementById("status").textContent = "📤 Location sent to AWS IoT!";
-          }, (geoErr) => {
-            document.getElementById("status").textContent = "Geolocation error: " + geoErr.message;
-          });
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              const payload = {
+                lat: position.coords.latitude,
+                lon: position.coords.longitude,
+                time: new Date().toISOString()
+              };
+              const message = new Paho.MQTT.Message(JSON.stringify(payload));
+              message.destinationName = "mobile/location";
+              mqttClient.send(message);
+              updateStatus("📤 Location sent to AWS IoT!");
+              console.log("Published payload:", payload);
+            },
+            (geoErr) => {
+              updateStatus("Geolocation error: " + geoErr.message);
+              console.error("Geolocation error:", geoErr);
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          );
         },
         onFailure: (err) => {
+          updateStatus("❌ MQTT connection failed: " + JSON.stringify(err));
           console.error("MQTT connection failed:", err);
-          document.getElementById("status").textContent = "❌ MQTT connection failed";
         },
+        useSSL: true,
+
+        // NOTE: The Paho MQTT JS client does NOT support AWS SigV4 auth out of the box.
+        // Using AWS temporary credentials directly here will likely fail.
+        // To fix this, you must generate a signed URL or use AWS IoT SDK v2/v3.
         userName: creds.accessKeyId,
         password: creds.sessionToken
       };
