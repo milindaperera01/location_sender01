@@ -1,122 +1,54 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <title>MQTT Location Sender</title>
+  <meta charset="utf-8">
+  <title>Location to MQTT</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/mqttws31.min.js"></script>
+  <style>
+    body { font-family: sans-serif; text-align: center; margin-top: 50px; }
+    #status { margin-top: 20px; color: green; }
+  </style>
 </head>
 <body>
-  <h1>MQTT Location Sender</h1>
-  <div id="status">Connecting...</div>
-
-  <!-- Load Paho MQTT locally -->
-  <script src="mqttws31.min.js"></script>
-
-  <!-- Load AWS SDK -->
-  <script src="https://sdk.amazonaws.com/js/aws-sdk-2.814.0.min.js"></script>
+  <h2>Sending Your Location...</h2>
+  <div id="status">Waiting for GPS permission...</div>
 
   <script>
-    const REGION = "us-east-1";
-    const IDENTITY_POOL_ID = "us-east-1:018326cf-26a9-4a3e-88e4-d64a4b61bdc2";
-    const IOT_ENDPOINT = "a85vmpn2frq7e-ats.iot.us-east-1.amazonaws.com";
+    const broker = "ws://YOUR_BROKER_IP:9001"; // replace with your Mosquitto WebSocket URL
+    const topic = "mobile/location";
 
-    document.addEventListener("DOMContentLoaded", function () {
-      AWS.config.region = REGION;
-
-      AWS.config.credentials = new AWS.CognitoIdentityCredentials({
-        IdentityPoolId: IDENTITY_POOL_ID
-      });
-
-      AWS.config.credentials.get(function (err) {
-        if (err) {
-          console.error("AWS credential error", err);
-          document.getElementById("status").innerText = "AWS credentials failed";
-          return;
-        }
-
-        console.log("✅ AWS credentials obtained.");
-
-        const requestUrl = SigV4Utils.getSignedUrl({
-          host: IOT_ENDPOINT,
-          region: REGION,
-          credentials: AWS.config.credentials
-        });
-
-        const clientId = "webclient-" + Math.floor(Math.random() * 100000);
-        const mqttClient = new Paho.MQTT.Client(requestUrl, clientId);
-
-        mqttClient.connect({
-          useSSL: true,
-          timeout: 10,
-          onSuccess: () => {
-            console.log("✅ Connected to AWS IoT!");
-            document.getElementById("status").innerText = "Connected!";
-            publishLocation();
-          },
-          onFailure: (err) => {
-            console.error("MQTT connect failed", err);
-            document.getElementById("status").innerText = "MQTT connect failed";
-          }
-        });
-
-        function publishLocation() {
-          navigator.geolocation.getCurrentPosition((pos) => {
-            const message = new Paho.MQTT.Message(JSON.stringify({
-              lat: pos.coords.latitude,
-              lon: pos.coords.longitude
-            }));
-            message.destinationName = "mobile/location";
-            mqttClient.send(message);
-            console.log("📤 Location sent:", message.payloadString);
-          }, (err) => {
-            console.error("Geolocation error", err);
-          });
+    function sendLocationToMQTT(lat, lon) {
+      const client = new Paho.MQTT.Client(broker, "web_" + Math.random());
+      client.connect({
+        onSuccess: () => {
+          document.getElementById("status").innerText = "Connected. Sending location...";
+          const message = new Paho.MQTT.Message(JSON.stringify({ lat, lon }));
+          message.destinationName = topic;
+          client.send(message);
+          document.getElementById("status").innerText = "Location sent: " + lat + ", " + lon;
+          client.disconnect();
+        },
+        onFailure: (err) => {
+          document.getElementById("status").innerText = "Connection failed: " + err.errorMessage;
         }
       });
+    }
 
-      const SigV4Utils = {
-        getSignedUrl: function (params) {
-          const endpoint = params.host;
-          const region = params.region;
-          const service = 'iotdevicegateway';
-          const protocol = 'wss';
-
-          const time = AWS.util.date.getDate();
-          const dateStamp = AWS.util.date.format(time, 'YYYYMMDD');
-          const amzdate = AWS.util.date.iso8601(time).replace(/[:\-]|\.\d{3}/g, '');
-          const credentialScope = dateStamp + '/' + region + '/' + service + '/' + 'aws4_request';
-          const credentials = params.credentials;
-          const kDate = AWS.util.crypto.hmac('AWS4' + credentials.secretAccessKey, dateStamp, 'buffer');
-          const kRegion = AWS.util.crypto.hmac(kDate, region, 'buffer');
-          const kService = AWS.util.crypto.hmac(kRegion, service, 'buffer');
-          const kSigning = AWS.util.crypto.hmac(kService, 'aws4_request', 'buffer');
-
-          const query = 'X-Amz-Algorithm=AWS4-HMAC-SHA256' +
-            '&X-Amz-Credential=' + encodeURIComponent(credentials.accessKeyId + '/' + credentialScope) +
-            '&X-Amz-Date=' + amzdate +
-            '&X-Amz-SignedHeaders=host';
-
-          const canonicalRequest = [
-            'GET',
-            '/mqtt',
-            query,
-            'host:' + endpoint + '\n',
-            'host',
-            'UNSIGNED-PAYLOAD'
-          ].join('\n');
-
-          const stringToSign = [
-            'AWS4-HMAC-SHA256',
-            amzdate,
-            credentialScope,
-            AWS.util.crypto.sha256(canonicalRequest, 'hex')
-          ].join('\n');
-
-          const signature = AWS.util.crypto.hmac(kSigning, stringToSign, 'hex');
-
-          return protocol + '://' + endpoint + '/mqtt?' + query + '&X-Amz-Signature=' + signature;
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          document.getElementById("status").innerText = "Location captured. Connecting to MQTT...";
+          sendLocationToMQTT(lat, lon);
+        },
+        (err) => {
+          document.getElementById("status").innerText = "Error getting location: " + err.message;
         }
-      };
-    });
+      );
+    } else {
+      document.getElementById("status").innerText = "Geolocation not supported.";
+    }
   </script>
 </body>
 </html>
