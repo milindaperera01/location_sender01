@@ -10,14 +10,14 @@
   </style>
 </head>
 <body>
-  <h2>Send Your Location as JSON</h2>
+  <h2>Send Your Location as JSON 000</h2>
   <input type="text" id="nameInput" placeholder="Enter your name" /><br><br>
   <button onclick="startSending()">Send Location</button>
   <div id="status">Status: Idle</div>
 
   <script>
     // Replace this with your actual endpoint later
-    const endpoint = "https://your-ip-or-domain/your-api-path";
+    const endpoint = "https://27ee-2402-4000-2280-8b2d-338d-d4a4-aa5c-3937.ngrok-free.app/api/loc/";
 
     function sendLocationJSON(name, lat, lon) {
       const data = { name, lat, lon };
