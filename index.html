@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8">
   <title>Send Your Location</title>
-  <script src="https://unpkg.com/paho-mqtt@1.1.0/paho-mqtt-min.js"></script>
+  <script src="paho-mqtt.js"></script>
+
   <style>
     body { font-family: sans-serif; text-align: center; margin-top: 50px; }
     #status { margin-top: 20px; color: green; }
@@ -11,7 +12,7 @@
   </style>
 </head>
 <body>
-  <h2>Send Your Location hutta ballige</h2>
+  <h2>Send Your Location wesa mqtt</h2>
   <input type="text" id="nameInput" placeholder="Enter your name" /><br><br>
   <button onclick="startSending()">Send Location</button>
   <div id="status">Status: Idle</div>
