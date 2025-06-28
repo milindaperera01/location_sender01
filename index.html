@@ -1,105 +1,76 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Send Your Location to MQTT</title>
+  <meta charset="utf-8">
+  <title>Send Your Location</title>
   <script src="paho-mqtt.js"></script>
   <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      margin-top: 50px;
-    }
-    #status {
-      margin-top: 20px;
-      color: green;
-      font-weight: bold;
-    }
-    #error {
-      margin-top: 20px;
-      color: red;
-      font-weight: bold;
-    }
-    input, button {
-      font-size: 1.1em;
-      padding: 8px;
-      margin-top: 10px;
-    }
+    body { font-family: sans-serif; text-align: center; margin-top: 50px; }
+    #status { margin-top: 20px; color: green; }
+    input, button { padding: 8px; font-size: 16px; }
   </style>
 </head>
 <body>
+  <h2>Send Your Location paka</h2>
+  <input type="text" id="nameInput" placeholder="Enter your name" /><br><br>
+  <button onclick="startSending()">Send Location</button>
+  <div id="status">Status: Idle</div>
 
-  <h2>Send Your Location111</h2>
-
-  <input type="text" id="name" placeholder="Enter your name" />
-  <br />
-  <button onclick="startSending()">Send Location 1</button>
-
-  <div id="status">Waiting for input...</div>
-  <div id="error"></div>
 
   <script>
-    // Check if Paho MQTT is loaded
-    if (typeof Paho === "undefined" || typeof Paho.MQTT === "undefined") {
-      document.getElementById('error').innerText = "Error: Paho MQTT library failed to load.";
-      document.getElementById('status').style.display = "none";
-    } else {
-      document.getElementById('status').innerText = "Enter your name and click 'Send Location'.";
+    const broker = "wss://ff7c-2402-4000-2280-8b2d-338d-d4a4-aa5c-3937.ngrok-free.app:443/mqtt";
+    const topic = "mobile/location";
+
+    if (typeof Paho === "undefined") {
+      document.getElementById("status").innerText = "Error: Paho MQTT library failed to load.";
     }
 
-    const topic = "mobile/location";
-    const broker = "wss://ff7c-2402-4000-2280-8b2d-338d-d4a4-aa5c-3937.ngrok-free.app";
- // Replace this with your broker WebSocket URL
-
     function sendLocationToMQTT(name, lat, lon) {
-      const clientId = "web_" + Math.random().toString(16).substr(2, 8);
-      const client = new Paho.MQTT.Client(broker, clientId);
+      const clientID = "web_" + Math.random().toString(16).substr(2, 8);
+      const client = new Paho.MQTT.Client(broker, clientID);
+
+      client.onConnectionLost = (responseObject) => {
+        document.getElementById("status").innerText = "Connection lost.";
+      };
 
       client.connect({
         onSuccess: () => {
           document.getElementById("status").innerText = "Connected. Sending location...";
-          const payload = JSON.stringify({ name, lat, lon, timestamp: new Date().toISOString() });
-          const message = new Paho.MQTT.Message(payload);
+          const message = new Paho.MQTT.Message(JSON.stringify({ name, lat, lon }));
           message.destinationName = topic;
           client.send(message);
-          document.getElementById("status").innerText = `Location sent for ${name}: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+          document.getElementById("status").innerText = "Location sent: " + lat + ", " + lon;
           client.disconnect();
         },
-        onFailure: (err) => {
-          document.getElementById("error").innerText = "Connection failed: " + err.errorMessage;
-          document.getElementById("status").innerText = "";
-        }
+        onFailure: (error) => {
+          document.getElementById("status").innerText = "Connection failed: " + error.errorMessage;
+        },
+        useSSL: true
       });
     }
 
     function startSending() {
-      const name = document.getElementById('name').value.trim();
+      const name = document.getElementById("nameInput").value.trim();
       if (!name) {
-        document.getElementById('error').innerText = "Please enter your name before sending location.";
-        document.getElementById('status').innerText = "";
+        document.getElementById("status").innerText = "Please enter your name before sending.";
         return;
       }
-      document.getElementById('error').innerText = "";
-      document.getElementById('status').innerText = "Getting your location...";
-
-      if (!navigator.geolocation) {
-        document.getElementById('error').innerText = "Geolocation is not supported by your browser.";
-        document.getElementById('status').innerText = "";
-        return;
+      if ("geolocation" in navigator) {
+        document.getElementById("status").innerText = "Getting your location...";
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            document.getElementById("status").innerText = "Location acquired. Connecting...";
+            sendLocationToMQTT(name, lat, lon);
+          },
+          (error) => {
+            document.getElementById("status").innerText = "Error getting location: " + error.message;
+          }
+        );
+      } else {
+        document.getElementById("status").innerText = "Geolocation is not supported by this browser.";
       }
-
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lon = pos.coords.longitude;
-          document.getElementById('status').innerText = `Location captured. Connecting to MQTT...`;
-          sendLocationToMQTT(name, lat, lon);
-        },
-        (err) => {
-          document.getElementById('error').innerText = `Error getting location: ${err.message}`;
-          document.getElementById('status').innerText = "";
-        }
-      );
     }
   </script>
 </body>
