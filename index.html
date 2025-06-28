@@ -2,30 +2,34 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Location to MQTT</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.3/mqttws31.min.js"></script>
+  <title>Location to MQTT 01</title>
+  <script src="https://unpkg.com/paho-mqtt@1.1.0/paho-mqtt-min.js"></script>
   <style>
     body { font-family: sans-serif; text-align: center; margin-top: 50px; }
     #status { margin-top: 20px; color: green; }
+    input { padding: 8px; font-size: 16px; width: 200px; }
+    button { padding: 8px 16px; font-size: 16px; margin-left: 10px; }
   </style>
 </head>
 <body>
-  <h2>Sending Your Location...</h2>
-  <div id="status">Waiting for GPS permission...</div>
+  <h2>Send Your Location</h2>
+  <input type="text" id="nameInput" placeholder="Enter your name" />
+  <button onclick="startSending()">Send Location</button>
+  <div id="status">Waiting for your input...</div>
 
   <script>
     const broker = "wss://ff7c-2402-4000-2280-8b2d-338d-d4a4-aa5c-3937.ngrok-free.app";
     const topic = "mobile/location";
 
-    function sendLocationToMQTT(lat, lon) {
+    function sendLocationToMQTT(name, lat, lon) {
       const client = new Paho.MQTT.Client(broker, "web_" + Math.random());
       client.connect({
         onSuccess: () => {
           document.getElementById("status").innerText = "Connected. Sending location...";
-          const message = new Paho.MQTT.Message(JSON.stringify({ lat, lon }));
+          const message = new Paho.MQTT.Message(JSON.stringify({ name, lat, lon }));
           message.destinationName = topic;
           client.send(message);
-          document.getElementById("status").innerText = "Location sent: " + lat + ", " + lon;
+          document.getElementById("status").innerText = `Location sent for ${name}: ${lat}, ${lon}`;
           client.disconnect();
         },
         onFailure: (err) => {
@@ -34,20 +38,28 @@
       });
     }
 
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lon = pos.coords.longitude;
-          document.getElementById("status").innerText = "Location captured. Connecting to MQTT...";
-          sendLocationToMQTT(lat, lon);
-        },
-        (err) => {
-          document.getElementById("status").innerText = "Error getting location: " + err.message;
-        }
-      );
-    } else {
-      document.getElementById("status").innerText = "Geolocation not supported.";
+    function startSending() {
+      const name = document.getElementById("nameInput").value.trim();
+      if (!name) {
+        document.getElementById("status").innerText = "Please enter your name before sending location.";
+        return;
+      }
+
+      if ("geolocation" in navigator) {
+        document.getElementById("status").innerText = "Getting your location...";
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude;
+            const lon = pos.coords.longitude;
+            sendLocationToMQTT(name, lat, lon);
+          },
+          (err) => {
+            document.getElementById("status").innerText = "Error getting location: " + err.message;
+          }
+        );
+      } else {
+        document.getElementById("status").innerText = "Geolocation not supported.";
+      }
     }
   </script>
 </body>
