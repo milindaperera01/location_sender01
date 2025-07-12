@@ -20,6 +20,7 @@
   <script>
     const endpoint = "https://raillynk.site/api/loc/";
     let watchId = null;
+    let lastSentTime = 0;
 
     function sendLocationJSON(train_name, speed, lat, lon) {
       const data = { train_name, speed, latitude: lat, longitude: lon };
@@ -30,13 +31,13 @@
       })
       .then(response => {
         if (response.ok) {
-          document.getElementById("status").innerText = `Location sent successfully at ${new Date().toLocaleTimeString()}.`;
+          document.getElementById("status").innerText = `Location sent at ${new Date().toLocaleTimeString()}.`;
         } else {
-          document.getElementById("status").innerText = "Failed to send location: " + response.statusText;
+          document.getElementById("status").innerText = "Failed to send: " + response.statusText;
         }
       })
       .catch(error => {
-        document.getElementById("status").innerText = "Error sending location: " + error.message;
+        document.getElementById("status").innerText = "Error sending: " + error.message;
       });
     }
 
@@ -50,11 +51,11 @@
       }
 
       if (!("geolocation" in navigator)) {
-        document.getElementById("status").innerText = "Geolocation is not supported by this browser.";
+        document.getElementById("status").innerText = "Geolocation is not supported.";
         return;
       }
 
-      document.getElementById("status").innerText = "Started sending location (watching position).";
+      document.getElementById("status").innerText = "Started sending location every 10 seconds.";
 
       if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
@@ -62,9 +63,13 @@
 
       watchId = navigator.geolocation.watchPosition(
         (position) => {
-          const lat = position.coords.latitude;
-          const lon = position.coords.longitude;
-          sendLocationJSON(train_name, speed, lat, lon);
+          const currentTime = Date.now();
+          if (currentTime - lastSentTime >= 10000) { // 10 seconds
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            sendLocationJSON(train_name, speed, lat, lon);
+            lastSentTime = currentTime;
+          }
         },
         (error) => {
           document.getElementById("status").innerText = "Error getting location: " + error.message;
