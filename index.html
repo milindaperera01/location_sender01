@@ -2,25 +2,26 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Send Your Location</title>
+  <title>Send Train Location</title>
   <style>
     body { font-family: sans-serif; text-align: center; margin-top: 50px; }
     #status { margin-top: 20px; color: green; }
-    input, button { padding: 8px; font-size: 16px; }
+    input, button { padding: 8px; font-size: 16px; margin: 5px; }
   </style>
 </head>
 <body>
-  <h2>Send Your Location</h2>
-  <input type="text" id="nameInput" placeholder="Enter your name" /><br><br>
-  <button onclick="startSending()">Send Location</button>
+  <h2>Send Train Location</h2>
+  <input type="text" id="trainNameInput" placeholder="Enter train name" /><br>
+  <input type="number" id="speedInput" placeholder="Enter speed (km/h)" /><br><br>
+  <button onclick="startSending()">Start Sending Location</button>
   <div id="status">Status: Idle</div>
 
   <script>
-    // Replace this with your actual endpoint later
-    const endpoint = "https://97fc-2402-4000-2280-8b2d-338d-d4a4-aa5c-3937.ngrok-free.app/api/loc/";
+    const endpoint = "https://4e589bbf14b2.ngrok-free.app/api/loc/";
+    let intervalId = null;
 
-    function sendLocationJSON(name, lat, lon) {
-      const data = { name, lat, lon };
+    function sendLocationJSON(train_name, speed, lat, lon) {
+      const data = { train_name, speed, latitude: lat, longitude: lon };
       fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -28,7 +29,7 @@
       })
       .then(response => {
         if (response.ok) {
-          document.getElementById("status").innerText = "Location sent successfully.";
+          document.getElementById("status").innerText = `Location sent successfully at ${new Date().toLocaleTimeString()}.`;
         } else {
           document.getElementById("status").innerText = "Failed to send location: " + response.statusText;
         }
@@ -39,27 +40,37 @@
     }
 
     function startSending() {
-      const name = document.getElementById("nameInput").value.trim();
-      if (!name) {
-        document.getElementById("status").innerText = "Please enter your name before sending.";
+      const train_name = document.getElementById("trainNameInput").value.trim();
+      const speed = document.getElementById("speedInput").value.trim();
+
+      if (!train_name || !speed) {
+        document.getElementById("status").innerText = "Please enter both train name and speed.";
         return;
       }
-      if ("geolocation" in navigator) {
-        document.getElementById("status").innerText = "Getting your location...";
+
+      if (!("geolocation" in navigator)) {
+        document.getElementById("status").innerText = "Geolocation is not supported by this browser.";
+        return;
+      }
+
+      document.getElementById("status").innerText = "Started sending location every 10 seconds.";
+
+      if (intervalId !== null) {
+        clearInterval(intervalId);
+      }
+
+      intervalId = setInterval(() => {
         navigator.geolocation.getCurrentPosition(
           (position) => {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
-            document.getElementById("status").innerText = "Location acquired. Sending...";
-            sendLocationJSON(name, lat, lon);
+            sendLocationJSON(train_name, speed, lat, lon);
           },
           (error) => {
             document.getElementById("status").innerText = "Error getting location: " + error.message;
           }
         );
-      } else {
-        document.getElementById("status").innerText = "Geolocation is not supported by this browser.";
-      }
+      }, 10000); // every 10 seconds
     }
   </script>
 </body>
