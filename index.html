@@ -14,11 +14,12 @@
   <input type="text" id="trainNameInput" placeholder="Enter train name" /><br>
   <input type="number" id="speedInput" placeholder="Enter speed (km/h)" /><br><br>
   <button onclick="startSending()">Start Sending Location</button>
+  <button onclick="stopSending()">Stop Sending</button>
   <div id="status">Status: Idle</div>
 
   <script>
     const endpoint = "https://4e589bbf14b2.ngrok-free.app/api/loc/";
-    let intervalId = null;
+    let watchId = null;
 
     function sendLocationJSON(train_name, speed, lat, lon) {
       const data = { train_name, speed, latitude: lat, longitude: lon };
@@ -53,24 +54,35 @@
         return;
       }
 
-      document.getElementById("status").innerText = "Started sending location every 10 seconds.";
+      document.getElementById("status").innerText = "Started sending location (watching position).";
 
-      if (intervalId !== null) {
-        clearInterval(intervalId);
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
       }
 
-      intervalId = setInterval(() => {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
-            sendLocationJSON(train_name, speed, lat, lon);
-          },
-          (error) => {
-            document.getElementById("status").innerText = "Error getting location: " + error.message;
-          }
-        );
-      }, 10000); // every 10 seconds
+      watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          sendLocationJSON(train_name, speed, lat, lon);
+        },
+        (error) => {
+          document.getElementById("status").innerText = "Error getting location: " + error.message;
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 10000
+        }
+      );
+    }
+
+    function stopSending() {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+        document.getElementById("status").innerText = "Stopped sending location.";
+      }
     }
   </script>
 </body>
