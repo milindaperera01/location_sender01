@@ -7,6 +7,7 @@
     body { font-family: sans-serif; text-align: center; margin-top: 50px; }
     #status { margin-top: 20px; color: green; }
     input, button { padding: 8px; font-size: 16px; margin: 5px; }
+    #cancelButton { background-color: red; color: white; }
   </style>
 </head>
 <body>
@@ -15,11 +16,11 @@
   <input type="number" id="speedInput" placeholder="Enter speed (km/h)" /><br><br>
   <button onclick="startSending()">Start Sending Location</button>
   <button onclick="stopSending()">Stop Sending</button>
+  <button id="cancelButton" onclick="sendCancel()">Cancel</button>
   <div id="status">Status: Idle</div>
 
   <script>
     const endpoint = "https://raillynk.site/api/loc/";
-    //const endpoint = "https://18f48ba570a4.ngrok-free.app/api/loc/"
     let watchId = null;
     let lastSentTime = 0;
 
@@ -65,7 +66,7 @@
       watchId = navigator.geolocation.watchPosition(
         (position) => {
           const currentTime = Date.now();
-          if (currentTime - lastSentTime >= 10000) { // 10 seconds
+          if (currentTime - lastSentTime >= 10000) {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
             sendLocationJSON(train_name, speed, lat, lon);
@@ -89,6 +90,26 @@
         watchId = null;
         document.getElementById("status").innerText = "Stopped sending location.";
       }
+    }
+
+    function sendCancel() {
+      const data = { action: "clear" };
+
+      fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      })
+      .then(response => {
+        if (response.ok) {
+          document.getElementById("status").innerText = `Cancel message sent at ${new Date().toLocaleTimeString()}.`;
+        } else {
+          document.getElementById("status").innerText = "Failed to send cancel: " + response.statusText;
+        }
+      })
+      .catch(error => {
+        document.getElementById("status").innerText = "Error sending cancel: " + error.message;
+      });
     }
   </script>
 </body>
